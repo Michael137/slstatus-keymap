@@ -1,13 +1,13 @@
 /* See LICENSE file for copyright and license details. */
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
 #include <X11/XKBlib.h> 
 #include <X11/Xlib.h>
 
 #include "../util.h"
-#include <stdio.h>
-#include <string.h>
 
-#define VARIANT_MAX 256
-#define LAYOUT_MAX 4
+#define LAYOUT_MAX 256
 
 /* Given a token (sym) from the xkb_symbols string
  * check whether it is a valid layout/variant. The
@@ -32,27 +32,29 @@ IsLayoutOrVariant(char *sym)
  * strings
  */
 void
-GetLayoutAndVariant(char *syms, char layout[], char variant[])
+GetKeyLayout(char *syms, char layout[], int groupNum)
 {
 	char *token,
-		 *paren,
 		 *copy,
 		 *delims = "+:";
+	int group = 0;
 
 	copy = strdup(syms);
 	token = strtok(copy, delims);
-	while (token != NULL && (strlen(layout) == 0 || strlen(variant) == 0)) {
-		paren = strchr(token, '(');
-		if (paren && IsLayoutOrVariant(paren + 1)) {
-			strncpy (variant, paren, VARIANT_MAX);
-		}
-
-		if (IsLayoutOrVariant(token)) {
+	while (token != NULL && group <= groupNum) {
+		/* Ignore :2,:3,:4 which represent additional layout
+ 		 * groups
+ 		 */
+		if (IsLayoutOrVariant(token)
+			&& !(strlen(token) == 1 && isdigit(token[0]))) {
 			strncpy (layout, token, LAYOUT_MAX);
+			group++;
 		}
 
 		token = strtok(NULL,delims);
 	}
+
+	free(copy);
 }
 
 const char *
@@ -60,11 +62,9 @@ keymap(void)
 {
 	Display *dpy;
 	char *symbols = NULL;
-	char layout[LAYOUT_MAX];
-	char variant[VARIANT_MAX];
+	static char layout[LAYOUT_MAX];
 
 	memset(layout, '\0', LAYOUT_MAX);
-	memset(variant, '\0', VARIANT_MAX);
 
 	if (!(dpy = XOpenDisplay(NULL))) {
 		warn("XOpenDisplay: Failed to open display");
@@ -73,31 +73,25 @@ keymap(void)
 
 	XkbDescRec* desc = XkbAllocKeyboard();
 	if (!desc) {
-		warn("XkbGetNames: failed to get XkbSymbolsNameMask keyboard component");
+		warn("XkbAllocKeyboard: could not allocate keyboard");
 		XCloseDisplay(dpy);
 		return NULL;
 	}
 
-
-	XkbGetNames(dpy, XkbSymbolsNameMask | XkbGroupNamesMask, desc);
+	XkbGetNames(dpy, XkbSymbolsNameMask, desc);
 	if (desc->names) {
-
-//--	XkbStateRec state;
-//--	XkbGetState(dpy, XkbUseCoreKbd, &state);
-//--	char *group = XGetAtomName(dpy, desc->names->groups[state.group]);
-//--	printf("Full name: %s\n", group);
+		XkbStateRec state;
+		XkbGetState(dpy, XkbUseCoreKbd, &state);
 
 		symbols = XGetAtomName(dpy, desc->names->symbols);
-		GetLayoutAndVariant(symbols, layout, variant);
-		printf("symbols: %s\n", symbols);
-		printf( "%s %s\n", layout, variant);
+		GetKeyLayout(symbols, layout, state.group);
 		XFree(symbols);
 	} else {
 		warn("XkbGetNames: failed to retrieve symbols for keys");
 		return NULL;
 	}
 
-	XkbFreeKeyboard(desc, XkbSymbolsNameMask | XkbGroupNamesMask, 1);
+	XkbFreeKeyboard(desc, XkbSymbolsNameMask, 1);
 	XCloseDisplay(dpy);
-	return "";
+	return layout;
 }
