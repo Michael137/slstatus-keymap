@@ -26,7 +26,8 @@ keymap(void)
 	XkbGetNames(dpy, XkbSymbolsNameMask, desc);
 	if (desc->names) {
 		keymap = XGetAtomName(dpy, desc->names->symbols);
-		// COpy and XFree keymap
+		// TODO: Copy and XFree keymap
+		
 	} else {
 		warn("XkbGetNames: failed to retrieve symbols for keys");
 		return NULL;
