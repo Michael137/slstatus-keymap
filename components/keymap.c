@@ -9,30 +9,30 @@ const char *
 keymap(void)
 {
 	Display *dpy;
+	char *keymap = NULL;
+
 	if (!(dpy = XOpenDisplay(NULL))) {
 		warn("XOpenDisplay: Failed to open display");
 		return NULL;
 	}
 
-	XkbStateRec state;
-	if (XkbGetState(dpy, XkbUseCoreKbd, &state) != 0) {
-		warn("XkbGetState: failed to get keyboard state");
+	XkbDescRec* desc = XkbAllocKeyboard();
+	if (!desc) {
+		warn("XkbGetNames: failed to get XkbSymbolsNameMask keyboard component");
+		XCloseDisplay(dpy);
 		return NULL;
-	};
-
-	XkbDescRec* desc = XkbGetMap(dpy, XkbNamesMask, XkbUseCoreKbd);
-	if (!desc)
-		warn("XkbGetMap: failed to get XkbNamesMask keyboard component");
+	}
 
 	XkbGetNames(dpy, XkbSymbolsNameMask, desc);
 	if (desc->names) {
-		char *atom = XGetAtomName(dpy, desc->names->symbols);
-		XkbFreeClientMap(desc, XkbNamesMask, 1);
-		return atom;
+		keymap = XGetAtomName(dpy, desc->names->symbols);
+		// COpy and XFree keymap
 	} else {
 		warn("XkbGetNames: failed to retrieve symbols for keys");
+		return NULL;
 	}
-	
-	XkbFreeClientMap(desc, XkbNamesMask, 1);
-	return NULL;
+
+	XkbFreeKeyboard(desc, XkbSymbolsNameMask, 1);
+	XCloseDisplay(dpy);
+	return keymap;
 }
