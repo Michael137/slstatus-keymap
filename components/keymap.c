@@ -12,33 +12,30 @@
 /* Given a token (sym) from the xkb_symbols string
  * check whether it is a valid layout/variant. The
  * EXCLUDES array contains invalid layouts/variants
- * that are part of the xkb rules.
+ * that are part of the xkb rules config.
  */
-int
+static int
 IsLayoutOrVariant(char *sym)
 {
 	static const char* EXCLUDES[] = { "evdev", "inet", "pc", "base" };
 
 	size_t i;
 	for (i = 0; i < sizeof(EXCLUDES)/sizeof(EXCLUDES[0]); ++i)
-		if (strstr(sym, EXCLUDES[i]))
+		if (strstr(sym, EXCLUDES[i])) {
 			return 0;
+		}
 
 	return 1;
 }
 
-/* Given a xkb_symbols string (syms) retrieve
- * and populate the provided layout and variant
- * strings
- */
-void
+static void
 GetKeyLayout(char *syms, char layout[], int groupNum)
 {
-	char *token,
-		 *copy,
-		 *delims = "+:";
-	int group = 0;
+	char *token, *copy, *delims;
+	int group;
 
+	delims = "+:";
+	group = 0;
 	copy = strdup(syms);
 	token = strtok(copy, delims);
 	while (token != NULL && group <= groupNum) {
@@ -46,7 +43,7 @@ GetKeyLayout(char *syms, char layout[], int groupNum)
  		 * groups
  		 */
 		if (IsLayoutOrVariant(token)
-			&& !(strlen(token) == 1 && isdigit(token[0]))) {
+		    && !(strlen(token) == 1 && isdigit(token[0]))) {
 			strncpy (layout, token, LAYOUT_MAX);
 			group++;
 		}
@@ -60,9 +57,11 @@ GetKeyLayout(char *syms, char layout[], int groupNum)
 const char *
 keymap(void)
 {
+	static char layout[LAYOUT_MAX];
+
 	Display *dpy;
 	char *symbols = NULL;
-	static char layout[LAYOUT_MAX];
+	XkbDescRec* desc = NULL;
 
 	memset(layout, '\0', LAYOUT_MAX);
 
@@ -71,9 +70,9 @@ keymap(void)
 		return NULL;
 	}
 
-	XkbDescRec* desc = XkbAllocKeyboard();
-	if (!desc) {
-		warn("XkbAllocKeyboard: could not allocate keyboard");
+	;
+	if (!(desc = XkbAllocKeyboard())) {
+		warn("XkbAllocKeyboard: failed to allocate keyboard");
 		XCloseDisplay(dpy);
 		return NULL;
 	}
